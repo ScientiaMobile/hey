@@ -54,6 +54,10 @@ Options:
   -disable-redirects    Disable following of HTTP redirects
   -cpus                 Number of used cpu cores.
                         (default for current machine is 8 cores)
+
+  -user-agent-feed      Set a User Agent for each request from file.
+						Expected on User Agent per line.
+						For example, /home/user/ua.txt or ./ua.txt.
 ```
 
 Previously known as [github.com/rakyll/boom](https://github.com/rakyll/boom).
