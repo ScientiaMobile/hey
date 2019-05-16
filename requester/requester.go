@@ -95,6 +95,11 @@ type Work struct {
 
 	report *report
 	mutex  sync.Mutex
+
+	// UserAgentFeed is where the UserAgentFeeder will read to set a user agent
+	// for each request. Optional.
+	UserAgentFeed   io.ReadSeeker
+	userAgentFeeder *userAgentFeeder
 }
 
 func (b *Work) writer() io.Writer {
@@ -109,6 +114,9 @@ func (b *Work) Init() {
 	b.initOnce.Do(func() {
 		b.results = make(chan *result, min(b.C*1000, maxResult))
 		b.stopCh = make(chan struct{}, b.C)
+		if b.UserAgentFeed != nil {
+			b.userAgentFeeder = newUserAgentFeeder(b.UserAgentFeed)
+		}
 	})
 }
 
@@ -148,6 +156,12 @@ func (b *Work) makeRequest(c *http.Client) {
 	var dnsStart, connStart, resStart, reqStart, delayStart time.Duration
 	var dnsDuration, connDuration, resDuration, reqDuration, delayDuration time.Duration
 	req := cloneRequest(b.Request, b.RequestBody)
+
+	// Set the request user agent from the feeder, if any
+	if b.userAgentFeeder != nil {
+		b.userAgentFeeder.Feed(req)
+	}
+
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(info httptrace.DNSStartInfo) {
 			dnsStart = now()
@@ -178,6 +192,7 @@ func (b *Work) makeRequest(c *http.Client) {
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+
 	resp, err := c.Do(req)
 	if err == nil {
 		size = resp.ContentLength

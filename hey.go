@@ -18,6 +18,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -63,6 +64,7 @@ var (
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
 	proxyAddr          = flag.String("x", "", "")
+	userAgentFeedFile  = flag.String("user-agent-feed", "", "")
 )
 
 var usage = `Usage: hey [options...] <url>
@@ -99,6 +101,10 @@ Options:
   -disable-redirects    Disable following of HTTP redirects
   -cpus                 Number of used cpu cores.
                         (default for current machine is %d cores)
+
+  -user-agent-feed      Set a User Agent for each request from file.
+                        Expected on User Agent per line.
+                        For example, /home/user/ua.txt or ./ua.txt.
 `
 
 func main() {
@@ -212,6 +218,14 @@ func main() {
 	header.Set("User-Agent", ua)
 	req.Header = header
 
+	var userAgentFeed io.ReadSeeker
+	if *userAgentFeedFile != "" {
+		userAgentFeed, err = os.Open(*userAgentFeedFile)
+		if err != nil {
+			usageAndExit(err.Error())
+		}
+	}
+
 	w := &requester.Work{
 		Request:            req,
 		RequestBody:        bodyAll,
@@ -225,6 +239,7 @@ func main() {
 		H2:                 *h2,
 		ProxyAddr:          proxyURL,
 		Output:             *output,
+		UserAgentFeed:      userAgentFeed,
 	}
 	w.Init()
 

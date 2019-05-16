@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -157,5 +158,52 @@ func TestRaceConditionDNSLookup(t *testing.T) {
 	w.Run()
 	if count != 5000 {
 		t.Errorf("Expected to send 5000 requests, found %v", count)
+	}
+}
+
+func TestUserAgentFeeder(t *testing.T) {
+	count := 0
+	userAgentCount := make(map[string]int)
+	mutex := &sync.Mutex{}
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		count++
+		userAgentCount[r.UserAgent()]++
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	// userAgentFeed contains also an empty feed that should fallback to
+	// userAgentDefault
+	userAgentFeed := []string{"hey/1.0.0", "", "hey/1.1.0"}
+	userAgentDefault := "hey/0.0.1"
+
+	uaf := strings.NewReader(strings.Join(userAgentFeed, "\n"))
+
+	req, _ := http.NewRequest("GET", server.URL, nil)
+	req.Header.Set("User-Agent", userAgentDefault)
+	w := &Work{
+		Request:       req,
+		N:             6,
+		C:             2,
+		UserAgentFeed: uaf,
+	}
+	w.Run()
+	if count != 6 {
+		t.Errorf("Expected to send 6 requests, found %v", count)
+	}
+
+	for _, ua := range userAgentFeed {
+		if ua == "" {
+			ua = userAgentDefault
+		}
+		v, ok := userAgentCount[ua]
+		if !ok {
+			t.Errorf("Expected to send requests with user agent %s but no one was sent", ua)
+		}
+		if v != 2 {
+			t.Errorf("Expected to send 2 requests with user agent %s, found %v", ua, v)
+		}
 	}
 }
