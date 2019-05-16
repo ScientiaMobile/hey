@@ -40,13 +40,16 @@ type userAgentFeeder struct {
 // it will restart to read from the beginning
 func (uaf *userAgentFeeder) userAgent() (string, error) {
 	uaf.mutex.Lock()
-	defer uaf.mutex.Unlock()
 	if uaf.scanner.Scan() == true {
-		return uaf.scanner.Text(), nil
+		ua := uaf.scanner.Text()
+		uaf.mutex.Unlock()
+		return ua, nil
 	}
 	if err := uaf.scanner.Err(); err != nil {
+		uaf.mutex.Unlock()
 		return "", err
 	}
+	uaf.mutex.Unlock()
 	uaf.reader.Seek(0, io.SeekStart)
 	uaf.scanner = bufio.NewScanner(uaf.reader)
 	return uaf.userAgent()
